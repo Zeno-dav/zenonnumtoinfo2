@@ -1,0 +1,8 @@
+{
+  "name": "zeno-number-api",
+  "version": "1.0.0",
+  "description": "Zeno Clean Number API",
+  "scripts": {
+    "start": "node api/index.js"
+  }
+}
