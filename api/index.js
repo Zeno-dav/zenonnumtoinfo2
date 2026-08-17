@@ -89,7 +89,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    // 7. Fetch from New Upstream Endpoint
+    // 7. Fetch from Upstream Endpoint
     const response = await fetch(
       `https://adityaapi.onrender.com/api/v1/info?key=100_Sub_Special_API&query=${encodeURIComponent(num)}`
     );
@@ -109,13 +109,15 @@ export default async function handler(req, res) {
       console.error("Could not write usage data to disk", e);
     }
 
-    // 8. Extract raw records array
+    // 8. Extract raw records array (Checks results first)
     let rawDataArray = [];
-    if (upstreamData && Array.isArray(upstreamData.data)) {
+    if (upstreamData && Array.isArray(upstreamData.results)) {
+      rawDataArray = upstreamData.results;
+    } else if (upstreamData && Array.isArray(upstreamData.data)) {
       rawDataArray = upstreamData.data;
     } else if (Array.isArray(upstreamData)) {
       rawDataArray = upstreamData;
-    } else if (upstreamData && typeof upstreamData === 'object') {
+    } else if (upstreamData && typeof upstreamData === 'object' && upstreamData.name) {
       rawDataArray = [upstreamData];
     }
 
@@ -148,7 +150,7 @@ export default async function handler(req, res) {
       record => record && record.name && String(record.name).trim() !== ""
     );
 
-    // Map upstream fields (matches mobile, fname, alt, circle, etc.)
+    // Map upstream fields
     const formattedRecords = validRecords.map(record => ({
       name: cleanValue(record.name),
       fatherName: cleanValue(record.fname || record.father_name),
