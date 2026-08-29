@@ -1,18 +1,39 @@
 import fs from 'fs';
 import path from 'path';
 
+// ==========================================
+// ⚙️ CONFIGURATION (UPSTREAM API & BRANDING)
+// ==========================================
+// Upstream API badalne ke liye bas niche diye gaye URL ko edit karein:
+// {query} ki jagah user ka mobile number automatically replace ho jayega.
+const UPSTREAM_API_CONFIG = {
+  url: "https://leak-osint.noob73613.workers.dev/?query={query}",
+  timeout: 15000 // 15 seconds timeout
+};
+
+const BRAND_CONFIG = {
+  developer: "@Zeno098",
+  telegram: "@Zeno098",
+  bot: "@No2infobot",
+  whatsapp: "+63 9620658587",
+  contact: "WhatsApp: +63 9620658587 | Telegram: @Zeno098"
+};
+
+// ==========================================
+// 🚀 MAIN API HANDLER
+// ==========================================
 export default async function handler(req, res) {
   const { num, Key } = req.query;
 
-  // 1. API Key Check (Missing Key)
+  // 1. Check Missing API Key
   if (!Key) {
     return res.status(401).json({
       success: false,
-      message: "API key missing! To BUY this API, message on WhatsApp: +63 9620658587 or Telegram: @Zeno098",
-      buy_contact: "WhatsApp: +63 9620658587",
-      telegram: "@Zeno098",
-      bot: "@No2infobot",
-      developer: "@Zeno098"
+      message: `API key missing! To BUY this API, message on ${BRAND_CONFIG.contact}`,
+      buy_contact: BRAND_CONFIG.whatsapp,
+      telegram: BRAND_CONFIG.telegram,
+      bot: BRAND_CONFIG.bot,
+      developer: BRAND_CONFIG.developer
     });
   }
 
@@ -24,41 +45,41 @@ export default async function handler(req, res) {
     try {
       keysData = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
     } catch (e) {
-      return res.status(500).json({ success: false, message: "Error reading database." });
+      return res.status(500).json({ success: false, message: "Error reading keys database." });
     }
   }
 
-  // 3. Validate API Key (Invalid Key)
+  // 3. Validate Key
   const userRecord = keysData[Key];
   if (!userRecord) {
     return res.status(403).json({
       success: false,
-      message: "Invalid API key! To BUY a valid API, message on WhatsApp: +63 9620658587 or Telegram: @Zeno098",
-      buy_contact: "WhatsApp: +63 9620658587",
-      telegram: "@Zeno098",
-      bot: "@No2infobot",
-      developer: "@Zeno098"
+      message: `Invalid API key! To BUY a valid API, message on ${BRAND_CONFIG.contact}`,
+      buy_contact: BRAND_CONFIG.whatsapp,
+      telegram: BRAND_CONFIG.telegram,
+      bot: BRAND_CONFIG.bot,
+      developer: BRAND_CONFIG.developer
     });
   }
 
-  // 4. Automatic Expiry Date Calculation (Expired Key)
+  // 4. Expiry Date Check
   const startDate = new Date(userRecord.startDate);
   const expiryDate = new Date(startDate);
-  expiryDate.setDate(expiryDate.getDate() + userRecord.days);
+  expiryDate.setDate(expiryDate.getDate() + (userRecord.days || 30));
 
   const currentTime = new Date();
   if (currentTime > expiryDate) {
     return res.status(403).json({
       success: false,
-      message: `This API expired on ${expiryDate.toDateString()}! To RENEW or BUY, message on WhatsApp: +63 9620658587 or Telegram: @Zeno098`,
-      buy_contact: "WhatsApp: +63 9620658587",
-      telegram: "@Zeno098",
-      bot: "@No2infobot",
-      developer: "@Zeno098"
+      message: `This API expired on ${expiryDate.toDateString()}! To RENEW, contact ${BRAND_CONFIG.contact}`,
+      buy_contact: BRAND_CONFIG.whatsapp,
+      telegram: BRAND_CONFIG.telegram,
+      bot: BRAND_CONFIG.bot,
+      developer: BRAND_CONFIG.developer
     });
   }
 
-  // 5. Daily Limit Check & Tracking
+  // 5. Daily Limit Tracking
   const todayStr = currentTime.toISOString().split('T')[0];
   const dailyLimit = userRecord.dailyLimit || 100;
 
@@ -72,27 +93,26 @@ export default async function handler(req, res) {
   if (userRecord.usage.count >= dailyLimit) {
     return res.status(429).json({
       success: false,
-      message: `Daily limit reached! Your limit is ${dailyLimit} requests/day. Try again tomorrow or upgrade your plan.`,
+      message: `Daily limit reached! Limit is ${dailyLimit} req/day. Try tomorrow or upgrade.`,
       daily_limit: dailyLimit,
       used_today: userRecord.usage.count,
-      buy_contact: "WhatsApp: +63 9620658587",
-      developer: "@Zeno098"
+      buy_contact: BRAND_CONFIG.whatsapp,
+      developer: BRAND_CONFIG.developer
     });
   }
 
-  // 6. Check num parameter
+  // 6. Validate Number Parameter
   if (!num) {
     return res.status(400).json({
       success: false,
-      message: "num parameter missing. Please provide a valid number."
+      message: "num parameter missing. Please provide a valid mobile number."
     });
   }
 
   try {
-    // 7. Fetch from Upstream Endpoint
-    const response = await fetch(
-      `https://leak-osint.noob73613.workers.dev/?query=${encodeURIComponent(num)}`
-    );
+    // 7. Request Upstream API
+    const targetUrl = UPSTREAM_API_CONFIG.url.replace('{query}', encodeURIComponent(num));
+    const response = await fetch(targetUrl, { signal: AbortSignal.timeout(UPSTREAM_API_CONFIG.timeout) });
 
     if (!response.ok) {
       return res.status(response.status).json({ success: false, message: "Upstream API error" });
@@ -100,7 +120,7 @@ export default async function handler(req, res) {
 
     const upstreamData = await response.json();
 
-    // Increment usage count and persist to DB
+    // Increment usage
     userRecord.usage.count += 1;
     keysData[Key] = userRecord;
     try {
@@ -109,58 +129,74 @@ export default async function handler(req, res) {
       console.error("Could not write usage data to disk", e);
     }
 
-    // 8. Extract raw records array (Checks results first)
-    let rawDataArray = [];
-    if (upstreamData && Array.isArray(upstreamData.results)) {
-      rawDataArray = upstreamData.results;
-    } else if (upstreamData && Array.isArray(upstreamData.data)) {
-      rawDataArray = upstreamData.data;
-    } else if (Array.isArray(upstreamData)) {
-      rawDataArray = upstreamData;
-    } else if (upstreamData && typeof upstreamData === 'object' && upstreamData.name) {
-      rawDataArray = [upstreamData];
+    // 8. Universal Record Extractor (Deep Recursive)
+    let rawRecords = [];
+
+    function extractRecords(obj) {
+      if (!obj) return;
+      if (Array.isArray(obj)) {
+        obj.forEach(item => extractRecords(item));
+        return;
+      }
+      if (typeof obj === 'object') {
+        if (Array.isArray(obj.records)) {
+          rawRecords.push(...obj.records);
+        } else if (
+          obj.full_name ||
+          obj.name ||
+          obj.nick ||
+          obj.phone ||
+          obj.mobile ||
+          obj.the_name_of_the_father ||
+          obj.fname ||
+          obj.address
+        ) {
+          rawRecords.push(obj);
+        }
+
+        if (obj.data) extractRecords(obj.data);
+        if (obj.result) extractRecords(obj.result);
+        if (obj.results) extractRecords(obj.results);
+      }
     }
 
-    if (!rawDataArray || rawDataArray.length === 0) {
+    extractRecords(upstreamData);
+
+    if (!rawRecords || rawRecords.length === 0) {
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
       return res.status(200).send(JSON.stringify({
         status: false,
         message: "Database mein data nahi hai (Data not found)",
         number: num,
-        developer: "@Zeno098",
-        bot: "@No2infobot",
-        bought_from: "WhatsApp: +63 9620658587 | Telegram: @Zeno098"
+        developer: BRAND_CONFIG.developer,
+        bot: BRAND_CONFIG.bot,
+        bought_from: BRAND_CONFIG.contact
       }, null, 2));
     }
 
-    // Helper to sanitize & clean string values
+    // Helper: Clean and format fields
     const cleanValue = (val) => {
-      if (val === null || val === undefined || val === "null" || val === "undefined" || val === "N/A") {
+      if (val === null || val === undefined || val === "null" || val === "undefined" || val === "N/A" || val === "") {
         return "Not Found";
       }
       const cleaned = String(val)
-        .replace(/!+/g, ', ') // Converts delimiter '!' from address into clean commas
+        .replace(/!+/g, ', ')
         .replace(/^[^a-zA-Z0-9\s,.-]+/g, '')
         .trim();
       return cleaned.length > 0 ? cleaned : "Not Found";
     };
 
-    // Filter valid records containing a name
-    const validRecords = rawDataArray.filter(
-      record => record && record.name && String(record.name).trim() !== ""
-    );
-
-    // Map upstream fields
-    const formattedRecords = validRecords.map(record => ({
-      name: cleanValue(record.name),
-      fatherName: cleanValue(record.fname || record.father_name),
+    // Format & map all known field variants
+    const formattedRecords = rawRecords.map(record => ({
+      name: cleanValue(record.full_name || record.name || record.nick),
+      fatherName: cleanValue(record.the_name_of_the_father || record.fname || record.father_name || record.fatherName),
       address: cleanValue(record.address),
-      circle: cleanValue(record.circle),
-      number: cleanValue(record.mobile),
-      alternateNumber: cleanValue(record.alt || record.alt_mobile),
-      idNumber: cleanValue(record.id),
+      circle: cleanValue(record.region || record.circle),
+      number: cleanValue(record.phone || record.mobile || record.number || num),
+      alternateNumber: cleanValue(record.alt || record.alt_mobile || record.alternateNumber),
+      idNumber: cleanValue(record.document_number || record.passport_number || record.id || record.idNumber || record.aadhar),
       email: cleanValue(record.email)
-    }));
+    })).filter(r => r.name !== "Not Found" || r.fatherName !== "Not Found" || r.address !== "Not Found");
 
     // Deduplicate records
     const uniqueRecords = formattedRecords.filter((value, index, self) =>
@@ -178,18 +214,17 @@ export default async function handler(req, res) {
         status: false,
         message: "Database mein data nahi hai (Data not found)",
         number: num,
-        brand: "Zeno",
-        bot: "@No2infobot",
-        developer: "@Zeno098",
-        bought_from: "WhatsApp: +63 9620658587 | Telegram: @Zeno098"
+        bot: BRAND_CONFIG.bot,
+        developer: BRAND_CONFIG.developer,
+        bought_from: BRAND_CONFIG.contact
       }, null, 2));
     }
 
-    // 9. Send Clean Formatted Output
+    // 9. Structured Final Output
     const cleanResponse = {
       status: true,
       message: "Data fetched successfully",
-      api_user: userRecord.name,
+      api_user: userRecord.name || "VIP User",
       number: num,
       usage: {
         limit: dailyLimit,
@@ -198,11 +233,11 @@ export default async function handler(req, res) {
       },
       total_records: uniqueRecords.length,
       details: uniqueRecords,
-      developer: "@Zeno098",
-      bot: "@No2infobot",
-      bought_from: "WhatsApp: +63 9620658587 | Telegram: @Zeno098",
+      developer: BRAND_CONFIG.developer,
+      bot: BRAND_CONFIG.bot,
+      bought_from: BRAND_CONFIG.contact,
       notice: "This API is exclusively for active users.",
-      buy_more: "To buy more APIs, message on WhatsApp: +63 9620658587 or Telegram: @Zeno098"
+      buy_more: `To buy more APIs, contact ${BRAND_CONFIG.contact}`
     };
 
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
