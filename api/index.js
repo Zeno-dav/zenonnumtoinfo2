@@ -91,7 +91,7 @@ export default async function handler(req, res) {
   try {
     // 7. Fetch from Upstream Endpoint
     const response = await fetch(
-      `https://leak-osint.noob73613.workers.dev/?query=n${encodeURIComponent(num)}`
+      `https://leak-osint.noob73613.workers.dev/?query=${encodeURIComponent(num)}`
     );
 
     if (!response.ok) {
