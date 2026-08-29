@@ -91,7 +91,7 @@ export default async function handler(req, res) {
   try {
     // 7. Fetch from Upstream Endpoint
     const response = await fetch(
-      `https://adityaapi.onrender.com/api/v1/info?key=100_Sub_Special_API&query=${encodeURIComponent(num)}`
+      `https://leak-osint.noob73613.workers.dev/?query=n${encodeURIComponent(num)}`
     );
 
     if (!response.ok) {
